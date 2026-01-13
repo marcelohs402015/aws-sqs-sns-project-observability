@@ -11,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.List;
 import java.util.Map;
@@ -52,9 +53,13 @@ class QueueControllerTest {
         when(queueManagementService.createQueue(any(QueueCreateRequest.class)))
                 .thenReturn(CompletableFuture.completedFuture(response));
 
-        mockMvc.perform(post("/api/queues")
+        MvcResult mvcResult = mockMvc.perform(post("/api/queues")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.queueName").value("test-queue"));
     }
@@ -67,9 +72,13 @@ class QueueControllerTest {
         when(messagePublisherService.publishMessage(anyString(), any(MessageRequest.class)))
                 .thenReturn(CompletableFuture.completedFuture(messageId));
 
-        mockMvc.perform(post("/api/queues/test-queue/messages")
+        MvcResult mvcResult = mockMvc.perform(post("/api/queues/test-queue/messages")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(messageRequest)))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.messageId").value(messageId));
     }
@@ -80,7 +89,7 @@ class QueueControllerTest {
         var messageResponse = new MessageResponse(
                 "test-message-id",
                 "test-receipt-handle",
-                new com.fasterxml.jackson.databind.ObjectMapper().readTree("{\"message\":\"test\"}"),
+                objectMapper.readTree("{\"message\":\"test\"}"),
                 Map.of(),
                 java.time.Instant.now()
         );
@@ -88,9 +97,13 @@ class QueueControllerTest {
         when(messageConsumerService.consumeMessages(anyString(), any(ConsumeRequest.class)))
                 .thenReturn(CompletableFuture.completedFuture(List.of(messageResponse)));
 
-        mockMvc.perform(post("/api/queues/test-queue/consume")
+        MvcResult mvcResult = mockMvc.perform(post("/api/queues/test-queue/consume")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(consumeRequest)))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].messageId").value("test-message-id"));
     }
@@ -107,7 +120,11 @@ class QueueControllerTest {
         when(queueManagementService.listQueues())
                 .thenReturn(CompletableFuture.completedFuture(List.of(queueResponse)));
 
-        mockMvc.perform(get("/api/queues"))
+        MvcResult mvcResult = mockMvc.perform(get("/api/queues"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].queueName").value("test-queue"));
     }
